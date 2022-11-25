@@ -1,0 +1,29 @@
+# This file populates the Overview on Charmhub.
+# See https://juju.is/docs/sdk/metadata-reference for a checklist and guidance.
+
+# The charm package name, no spaces (required)
+# See https://juju.is/docs/sdk/naming#heading--naming-charms for guidance.
+name: samba-ctdb-cluster
+ 
+# The following metadata are human-readable and will be published prominently on Charmhub.
+
+# (Recommended)
+display-name: Samba CTDB Cluster
+
+# (Required)
+summary: Deploys a Samba cluster backed by CTDB
+
+maintainers: Johan Hallbäck <johan.hallbaeck@ibeo-as.com>
+
+description: |
+  This charm installs Samba and forms a HA environment.
+
+  This is useful for people who hate setting up Samba clusters by hand.
+
+series:
+  - focal
+  - jammy
+
+peers:
+  samba-ctdb-peer:
+    interface: samba-ctdb-peer
