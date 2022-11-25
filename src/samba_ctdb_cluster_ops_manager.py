@@ -1,6 +1,13 @@
-"""SambaCTDBClusterOpsManager Class"""
+"""SambaCTDBManager Class"""
 
 import subprocess
+import sys
+
+#CTDB_PKGS = ['smbclient', 'samba', 'ctdb', 'winbind', 'libnss-winbind',
+#        'libpam-winbind', 'krb5-user', 'quota', 'acl']
+# krb5-user should probably be installed later by some sssd subordinate
+CTDB_PKGS = ['smbclient', 'samba', 'ctdb', 'winbind', 'libnss-winbind',
+        'libpam-winbind', 'quota', 'acl']
 
 class SambaCTDBManager:
     """
@@ -30,9 +37,19 @@ class SambaCTDBManager:
         except Exception as e:
             print("Error starting ctdb", str(e))
 
-    def install_ctdb(self, resource_file):
-        """ Installs from a supplied zip file resource """
-        # actually install packages
+    def install_ctdb(self):
+        """
+        Install packages. Juju has already run apt-get upgrade.
+        Afterwards, services smbd, nmbd, winbind and ctdb are enabled,
+        but ctdb is dead.
+        """
+        try:
+            cmd = ['apt', 'install', '-y']
+            cmd.extend(CTDB_PKGS)
+            subprocess.run(cmd, check = True)
+        except Exception as e:
+            print("Error installing ctdb", str(e))
+            sys.exit(1)
 
     def ctdb_version(self):
         """ Return the version of ctdb as a string or None"""

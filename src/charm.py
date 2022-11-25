@@ -15,7 +15,7 @@ develop a new k8s charm using the Operator Framework:
 import logging
 import time
 
-from ops.charm import CharmBase
+from ops.charm import CharmBase, LeaderElectedEvent, RelationJoinedEvent, RelationDepartedEvent, RelationChangedEvent
 from ops.main import main
 from ops.model import ActiveStatus, BlockedStatus, WaitingStatus, MaintenanceStatus
 from ops.framework import StoredState
@@ -43,19 +43,19 @@ class SambaCTDBClusterCharm(CharmBase):
         self.framework.observe(self.on.update_status, self._on_update_status)
 
         # Peer relation stuff - https://juju.is/docs/sdk/integration
-        # Implement these!
+        # Implement these! "ctdbpeers" is defined in metadata.yaml
         self.framework.observe(self.on.leader_elected, self._on_leader_elected)
-        self.framework.observe(self.on.replicas_relation_joined, self._on_replicas_relation_joined)
-        self.framework.observe(self.on.replicas_relation_departed, self._on_replicas_relation_departed)
-        self.framework.observe(self.on.replicas_relation_changed, self._on_replicas_relation_changed)
+        self.framework.observe(self.on.ctdbpeers_relation_joined, self._on_ctdbpeers_relation_joined)
+        self.framework.observe(self.on.ctdbpeers_relation_departed, self._on_ctdbpeers_relation_departed)
+        self.framework.observe(self.on.ctdbpeers_relation_changed, self._on_ctdbpeers_relation_changed)
 
         self._stored.set_default(leader_ip="")
 
     def _on_install(self, event):
-        self.unit.status = MaintenanceStatus("Charm is now being installed")
-        logger.info("Our charm is now being installed")
+        self.unit.status = MaintenanceStatus("Samba CTDB packages are now being installed")
+        logger.info("Samba CTDB packages are now being installed")
         self.samba_ctdb_manager.install_ctdb()
-        self.unit.status = ActiveStatus("Charm is now installed")
+        self.unit.status = ActiveStatus("Samba CTDB packages have been")
 
     def _on_config_changed(self, event):
         """Handle changed configuration.
@@ -89,16 +89,16 @@ class SambaCTDBClusterCharm(CharmBase):
         """Handle the leader-elected event"""
         logging.debug("Leader %s setting some data!", self.unit.name)
         # Get the peer relation object
-        peer_relation = self.model.get_relation("replicas")
+        peer_relation = self.model.get_relation("ctdbpeers")
         # Get the bind address from the juju model
         # Convert to string as relation data must always be a string
         ip = str(self.model.get_binding(peer_relation).network.bind_address)
-        # Update some data to trigger a replicas_relation_changed event
+        # Update some data to trigger a ctdbpeers_relation_changed event
         peer_relation.data[self.app].update({"leader-ip": ip})
 
-    def _on_replicas_relation_joined(self, event: RelationJoinedEvent) -> None:
+    def _on_ctdbpeers_relation_joined(self, event: RelationJoinedEvent) -> None:
         logger.info("Leader elected event")
-        """Handle relation-joined event for the replicas relation"""
+        """Handle relation-joined event for the ctdbpeers relation"""
         logger.debug("Hello from %s to %s", self.unit.name, event.unit.name)
 
         # Check if we're the leader
@@ -111,14 +111,14 @@ class SambaCTDBClusterCharm(CharmBase):
         # Update our unit data bucket in the relation
         event.relation.data[self.unit].update({"unit-data": self.unit.name})
 
-    def _on_replicas_relation_departed(self, event: RelationDepartedEvent) -> None:
+    def _on_ctdbpeers_relation_departed(self, event: RelationDepartedEvent) -> None:
         logger.info("Leader departed event")
-        """Handle relation-departed event for the replicas relation"""
+        """Handle relation-departed event for the ctdbpeers relation"""
         logger.debug("Goodbye from %s to %s", self.unit.name, event.unit.name)
 
-    def _on_replicas_relation_changed(self, event: RelationChangedEvent) -> None:
+    def _on_ctdbpeers_relation_changed(self, event: RelationChangedEvent) -> None:
         logger.info("Leader changed event")
-        """Handle relation-changed event for the replicas relation"""
+        """Handle relation-changed event for the ctdbpeers relation"""
         logging.debug("Unit %s can see the following data: %s", self.unit.name, event.relation.data.keys())
         # Fetch an item from the application data bucket
         leader_ip_value = event.relation.data[self.app].get("leader-ip")

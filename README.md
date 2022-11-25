@@ -21,7 +21,7 @@ This charm is in not even close to usable yet.
 
 <!-- If your charm is documented somewhere else other than Charmhub, provide a link separately. -->
 
-- [Read more](https://example.com)
+- [Read more](https://wiki.samba.org/index.php/CTDB_and_Clustered_Samba)
 
 - [Contributing](CONTRIBUTING.md) <!-- or link to other contribution documentation -->
 

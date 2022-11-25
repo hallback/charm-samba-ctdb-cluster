@@ -25,5 +25,5 @@ series:
   - jammy
 
 peers:
-  samba-ctdb-peer:
+  ctdbpeers:
     interface: samba-ctdb-peer
