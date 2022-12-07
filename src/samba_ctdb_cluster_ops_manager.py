@@ -51,6 +51,18 @@ class SambaCTDBManager:
             print("Error installing ctdb", str(e))
             sys.exit(1)
 
+    def remove_ctdb(self):
+        """
+        Uninstall packages and traces of the charm.
+        """
+        try:
+            cmd = ['apt', 'purge', '-y']
+            cmd.extend(CTDB_PKGS)
+            subprocess.run(cmd, check = True)
+        except Exception as e:
+            print("Error uninstalling ctdb", str(e))
+            sys.exit(1)
+
     def ctdb_version(self):
         """ Return the version of ctdb as a string or None"""
         try:

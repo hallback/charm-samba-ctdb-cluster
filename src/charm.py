@@ -20,12 +20,14 @@ from ops.main import main
 from ops.model import ActiveStatus, BlockedStatus, WaitingStatus, MaintenanceStatus
 from ops.framework import StoredState
 
+from jinja2 import Environment, FileSystemLoader
+
 from samba_ctdb_cluster_ops_manager import SambaCTDBManager
 
 # Log messages can be retrieved using juju debug-log
 logger = logging.getLogger(__name__)
 
-VALID_LOG_LEVELS = ["info", "debug", "warning", "error", "critical"]
+VALID_LOG_LEVELS = ["DEBUG", "INFO", "NOTICE", "WARNING", "ERROR"]
 
 
 class SambaCTDBClusterCharm(CharmBase):
@@ -38,6 +40,7 @@ class SambaCTDBClusterCharm(CharmBase):
         super().__init__(*args)
         self.samba_ctdb_manager = SambaCTDBManager()
         self.framework.observe(self.on.install, self._on_install)
+        self.framework.observe(self.on.remove, self._on_remove)
         self.framework.observe(self.on.config_changed, self._on_config_changed)
         self.framework.observe(self.on.start, self._on_start)
         self.framework.observe(self.on.update_status, self._on_update_status)
@@ -55,7 +58,13 @@ class SambaCTDBClusterCharm(CharmBase):
         self.unit.status = MaintenanceStatus("Samba CTDB packages are now being installed")
         logger.info("Samba CTDB packages are now being installed")
         self.samba_ctdb_manager.install_ctdb()
-        self.unit.status = ActiveStatus("Samba CTDB packages have been")
+        self.unit.status = ActiveStatus("Samba CTDB packages have been installed")
+
+    def _on_remove(self, event):
+        self.unit.status = MaintenanceStatus("Samba CTDB packages are now being removed")
+        logger.info("Samba CTDB packages are now being installed")
+        self.samba_ctdb_manager.remove_ctdb()
+        self.unit.status = ActiveStatus("Samba CTDB packages have been removed")
 
     def _on_config_changed(self, event):
         """Handle changed configuration.
@@ -66,19 +75,30 @@ class SambaCTDBClusterCharm(CharmBase):
         Learn more about config at https://juju.is/docs/sdk/config
         """
         # Fetch the new config value
-        log_level = self.model.config["log-level"].lower()
+        log_level = self.model.config["ctdb-log-level"].upper()
 
-        # Do some validation of the configuration option
+        # Do some validation of the configuration options
         if log_level in VALID_LOG_LEVELS:
             self.unit.status = MaintenanceStatus("Charm is now being configured")
-            logger.info("Heyhey configured log level %s" % log_level)
+            logger.info("Configured CTDB log level %s" % log_level)
+            env = Environment(loader=FileSystemLoader("templates"), keep_trailing_newline=True)
+            template = env.get_template("ctdb.conf") 
+            result = template.render(ctdb_log_level=log_level)
+            with open('/etc/ctdb/ctdb.conf', 'w') as ctdbconf:
+                ctdbconf.write(result)
         else:
             # In this case, the config option is bad, so block the charm and notify the operator.
             self.unit.status = BlockedStatus("invalid log level: '{log_level}'")
 
     def _on_start(self, event):
-        self.unit.status = ActiveStatus("Charm is now started")
-        logger.info("Our charm is now started")
+        self.samba_ctdb_manager.start_ctdb()
+        self.unit.status = ActiveStatus("Charm and Samba services are now started")
+        logger.info("Charm and Samba services are now started")
+
+    def _on_stop(self, event):
+        self.samba_ctdb_manager.stop_ctdb()
+        self.unit.status = ActiveStatus("Charm and Samba services are now stopped")
+        logger.info("Charm and Samba services are now stopped")
 
     def _on_update_status(self, event):
         now = time.ctime()
