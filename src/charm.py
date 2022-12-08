@@ -14,6 +14,7 @@ develop a new k8s charm using the Operator Framework:
 
 import logging
 import time
+import os
 
 from ops.charm import CharmBase, LeaderElectedEvent, RelationJoinedEvent, RelationDepartedEvent, RelationChangedEvent
 from ops.main import main
@@ -74,18 +75,37 @@ class SambaCTDBClusterCharm(CharmBase):
 
         Learn more about config at https://juju.is/docs/sdk/config
         """
-        # Fetch the new config value
+        # Fetch the config values
         log_level = self.model.config["ctdb-log-level"].upper()
+        try:
+            recovery_lock = self.model.config["ctdb-recovery-lock"]
+        except Exception as e:
+            recovery_lock = ''
+        #sssc = self.model.config["ctdb-samba-skip-share-check"]
+        sssc = "yes" if self.model.config["ctdb-samba-skip-share-check"] else "no"
+
+        # If we're running inside a container, realtime scheduling must be
+        # disabled
+        nrs = 'true'
+        if os.path.exists('/dev/lxd'):
+            nrs = 'false'
 
         # Do some validation of the configuration options
         if log_level in VALID_LOG_LEVELS:
             self.unit.status = MaintenanceStatus("Charm is now being configured")
             logger.info("Configured CTDB log level %s" % log_level)
-            env = Environment(loader=FileSystemLoader("templates"), keep_trailing_newline=True)
-            template = env.get_template("ctdb.conf") 
-            result = template.render(ctdb_log_level=log_level)
-            with open('/etc/ctdb/ctdb.conf', 'w') as ctdbconf:
-                ctdbconf.write(result)
+            env = Environment(loader=FileSystemLoader("templates"),
+                    keep_trailing_newline=True, trim_blocks=True)
+            ctdb_conf_tmpl = env.get_template("ctdb.conf")
+            ctdb_conf = ctdb_conf_tmpl.render(ctdb_log_level=log_level,
+                    ctdb_recovery_lock=recovery_lock,
+                    no_realtime_scheduling=nrs)
+            script_options_tmpl = env.get_template("script.options")
+            script_options = script_options_tmpl.render(ctdb_samba_skip_share_check=sssc)
+            with open('/etc/ctdb/ctdb.conf', 'w') as f:
+                f.write(ctdb_conf)
+            with open('/etc/ctdb/script.options', 'w') as f:
+                f.write(script_options)
         else:
             # In this case, the config option is bad, so block the charm and notify the operator.
             self.unit.status = BlockedStatus("invalid log level: '{log_level}'")

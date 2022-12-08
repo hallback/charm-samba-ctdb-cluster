@@ -9,6 +9,19 @@ options:
     description: |
       Configures the log level of CTDB. 
 
-      Valid log levels are: "DEBUG", "INFO", "NOTICE", "WARNING" and "ERROR"
-    default: "NOTICE"
+      Valid log levels are: DEBUG, INFO, NOTICE, WARNING and ERROR
+    default: NOTICE
     type: string
+  ctdb-recovery-lock:
+    description: |
+      Use this option to set the option recovery lock in ctdb.conf. If not set,
+      the default of no lock at all will be set (not recommended)
+    default:
+    type: string
+  ctdb-samba-skip-share-check:
+    description: |
+      As part of monitoring, should CTDB skip the check for the existence of each
+      directory configured as share in Samba. This may be desirable if there is a
+      large number of shares.
+    default: True
+    type: boolean
