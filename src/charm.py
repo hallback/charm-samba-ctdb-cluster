@@ -1,5 +1,4 @@
-#!/usr/bin/env python3
-# Copyright 2022 Johan Hallbäck
+
 # See LICENSE file for licensing details.
 #
 # Learn more at: https://juju.is/docs/sdk
@@ -27,7 +26,7 @@ from samba_ctdb_cluster_ops_manager import SambaCTDBManager
 
 # Log messages can be retrieved using juju debug-log
 logger = logging.getLogger(__name__)
-
+ctdbnodesfile = '/etc/ctdb/nodes'
 VALID_LOG_LEVELS = ["DEBUG", "INFO", "NOTICE", "WARNING", "ERROR"]
 
 
@@ -91,6 +90,8 @@ class SambaCTDBClusterCharm(CharmBase):
             nrs = 'false'
 
         # Do some validation of the configuration options
+        # TODO: With more options, this log_level stuff needs to be separated
+        # from the rest
         if log_level in VALID_LOG_LEVELS:
             self.unit.status = MaintenanceStatus("Charm is now being configured")
             logger.info("Configured CTDB log level %s" % log_level)
@@ -106,9 +107,20 @@ class SambaCTDBClusterCharm(CharmBase):
                 f.write(ctdb_conf)
             with open('/etc/ctdb/script.options', 'w') as f:
                 f.write(script_options)
+            # If we have no nodes file here, this must be a single unit (no
+            # peers), nodes must be created or CTDB can't start
+            if not os.path.exists(ctdbnodesfile):
+                # TODO: Is this the right way to go if we have no peers? Easier
+                # way to get the IP? Or use localhost?
+                peer_relation = self.model.get_relation("ctdbpeers")
+                ip = str(self.model.get_binding(peer_relation).network.bind_address)
+                with open(ctdbnodesfile, 'w') as f:
+                    f.write("%s\n" % ip)
         else:
             # In this case, the config option is bad, so block the charm and notify the operator.
             self.unit.status = BlockedStatus("invalid log level: '{log_level}'")
+
+        self.unit.status = ActiveStatus("Charm has been configured")
 
     def _on_start(self, event):
         self.samba_ctdb_manager.start_ctdb()
@@ -137,32 +149,43 @@ class SambaCTDBClusterCharm(CharmBase):
         peer_relation.data[self.app].update({"leader-ip": ip})
 
     def _on_ctdbpeers_relation_joined(self, event: RelationJoinedEvent) -> None:
-        logger.info("Leader elected event")
         """Handle relation-joined event for the ctdbpeers relation"""
+        logger.info("Relation joined event")
         logger.debug("Hello from %s to %s", self.unit.name, event.unit.name)
 
-        # Check if we're the leader
-        if self.unit.is_leader():
-            # Get the bind address from the juju model
-            ip = str(self.model.get_binding(event.relation).network.bind_address)
-            logging.debug("Leader %s setting some data!", self.unit.name)
-            event.relation.data[self.app].update({"leader-ip": ip})
+        #if self.unit.is_leader():
+        #    # Get the bind address from the juju model
+        #    ip = str(self.model.get_binding(event.relation).network.bind_address)
+        #    logging.debug("Leader %s setting some data!", self.unit.name)
+        #    event.relation.data[self.app].update({"leader-ip": ip})
 
         # Update our unit data bucket in the relation
         event.relation.data[self.unit].update({"unit-data": self.unit.name})
 
     def _on_ctdbpeers_relation_departed(self, event: RelationDepartedEvent) -> None:
-        logger.info("Leader departed event")
         """Handle relation-departed event for the ctdbpeers relation"""
+        logger.info("Relation departed event")
         logger.debug("Goodbye from %s to %s", self.unit.name, event.unit.name)
 
+        #if self.unit.is_leader():
+
     def _on_ctdbpeers_relation_changed(self, event: RelationChangedEvent) -> None:
-        logger.info("Leader changed event")
         """Handle relation-changed event for the ctdbpeers relation"""
+        logger.info("Relation changed event")
         logging.debug("Unit %s can see the following data: %s", self.unit.name, event.relation.data.keys())
+        logging.debug("Unit %s can see the following UNIT data: %s", self.unit.name, event.relation.data[self.unit].keys())
+        logging.debug("Unit %s can see the following APP data: %s", self.unit.name, event.relation.data[self.app].keys())
+        #unit-samba-ctdb-cluster-0: 00:28:09 DEBUG unit.samba-ctdb-cluster/0.juju-log ctdbpeers:0: Unit samba-ctdb-cluster/0 can see the following data:
+        # KeysView({<ops.model.Unit samba-ctdb-cluster/0>:
+        #              {'egress-subnets': '10.21.183.36/32', 'ingress-address': '10.21.183.36', 'private-address': '10.21.183.36', 'unit-data': 'samba-ctdb-cluster/0'},
+        #           <ops.model.Application samba-ctdb-cluster>:
+        #              {'leader-ip': '10.21.183.36'},
+        #           <ops.model.Unit samba-ctdb-cluster/1>:
+        #              {'egress-subnets': '10.21.183.142/32', 'ingress-address': '10.21.183.142', 'private-address': '10.21.183.142', 'unit-data': 'samba-ctdb-cluster/1'}
+        #         })
         # Fetch an item from the application data bucket
         leader_ip_value = event.relation.data[self.app].get("leader-ip")
-        # Store the latest copy locally in our state store
+        # Store the latest copy locally in our state store (stupid example?)
         if leader_ip_value and leader_ip_value != self._stored.leader_ip:
             self._stored.leader_ip = leader_ip_value
 
